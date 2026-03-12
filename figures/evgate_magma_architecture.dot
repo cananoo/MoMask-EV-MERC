@@ -1,0 +1,109 @@
+digraph EVGateMagmaDetailed {
+  graph [rankdir=TB, newrank=true, compound=true, splines=spline, nodesep=0.35, ranksep=0.42, pad=0.25, bgcolor="white", fontname="Helvetica"];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=12, color="#5b6b7a", penwidth=1.5, margin="0.16,0.10"];
+  edge [color="#516b7b", penwidth=1.8, arrowsize=0.75];
+
+  subgraph cluster_inputs {
+    label="Multimodal Utterance Encoding";
+    labelloc=t; fontsize=18; fontname="Helvetica-Bold"; color="#d7e3f4"; style="rounded";
+
+    txt_in [shape=plain, group="g1", label=<
+      <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" COLOR="#79a7f4">
+        <TR><TD BGCOLOR="#eef4ff"><B>Text tokens</B></TD></TR>
+        <TR><TD>
+          <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3" COLOR="#79a7f4">
+            <TR><TD BGCOLOR="#d9e7ff">[CLS]</TD><TD BGCOLOR="#edf4ff">I</TD><TD BGCOLOR="#edf4ff">am</TD><TD BGCOLOR="#cfe1ff">fine</TD></TR>
+          </TABLE>
+        </TD></TR>
+        <TR><TD><FONT POINT-SIZE="10">RoBERTa-Large embedding</FONT></TD></TR>
+      </TABLE>>];
+    aud_in [shape=plain, group="g2", label=<
+      <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" COLOR="#57bdb6">
+        <TR><TD BGCOLOR="#edfbfb"><B>Audio frames</B></TD></TR>
+        <TR><TD>
+          <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="2" COLOR="#57bdb6">
+            <TR><TD BGCOLOR="#d6f5f3"> </TD><TD BGCOLOR="#bdecea"> </TD><TD BGCOLOR="#97ded9"> </TD><TD BGCOLOR="#c8f1ef"> </TD><TD BGCOLOR="#7ed4cd"> </TD><TD BGCOLOR="#bdecea"> </TD></TR>
+          </TABLE>
+        </TD></TR>
+        <TR><TD><FONT POINT-SIZE="10">openSMILE descriptors</FONT></TD></TR>
+      </TABLE>>];
+    vis_in [shape=plain, group="g3", label=<
+      <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" COLOR="#9a84df">
+        <TR><TD BGCOLOR="#f4efff"><B>Visual frames</B></TD></TR>
+        <TR><TD>
+          <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="2" COLOR="#9a84df">
+            <TR><TD BGCOLOR="#eadfff"> </TD><TD BGCOLOR="#d9ccff"> </TD><TD BGCOLOR="#cdbbfd"> </TD><TD BGCOLOR="#eadfff"> </TD><TD BGCOLOR="#d9ccff"> </TD><TD BGCOLOR="#cdbbfd"> </TD></TR>
+          </TABLE>
+        </TD></TR>
+        <TR><TD><FONT POINT-SIZE="10">DenseNet facial features</FONT></TD></TR>
+      </TABLE>>];
+
+    txt_proj [group="g1", label=< <B>Text projection</B><BR/><FONT POINT-SIZE="10">LayerNorm + Linear + GELU</FONT><BR/><FONT POINT-SIZE="10">1024 -&gt; 320/256</FONT> >, fillcolor="#f7faff", color="#9fb2c8"];
+    aud_proj [group="g2", label=< <B>Audio projection</B><BR/><FONT POINT-SIZE="10">LayerNorm + Linear + GELU</FONT><BR/><FONT POINT-SIZE="10">1582/300 -&gt; 320/256</FONT> >, fillcolor="#f7faff", color="#9fb2c8"];
+    vis_proj [group="g3", label=< <B>Visual projection</B><BR/><FONT POINT-SIZE="10">LayerNorm + Linear + GELU</FONT><BR/><FONT POINT-SIZE="10">342 -&gt; 320/256</FONT> >, fillcolor="#f7faff", color="#9fb2c8"];
+
+    {rank=same; txt_in; aud_in; vis_in}
+    {rank=same; txt_proj; aud_proj; vis_proj}
+
+    txt_in -> txt_proj;
+    aud_in -> aud_proj;
+    vis_in -> vis_proj;
+  }
+
+  subgraph cluster_evt {
+    label="EV-Gate: Conflict-aware Fusion";
+    labelloc=t; fontsize=18; fontname="Helvetica-Bold"; color="#f4ddcf"; style="rounded";
+
+    dist [label=< <B>Discrepancy scores</B><BR/><FONT POINT-SIZE="10">delta_ta = ||h_t - h_a||_2</FONT><BR/><FONT POINT-SIZE="10">delta_tv = ||h_t - h_v||_2</FONT> >, fillcolor="#fff7ef", color="#e79a59"];
+    router [label=< <B>Violation router</B><BR/><FONT POINT-SIZE="10">g = sigmoid(MLP(delta))</FONT> >, fillcolor="#fff1e5", color="#e6863b"];
+    stable [label=< <B>Stable path</B><BR/><FONT POINT-SIZE="10">MLP([h_t; h_a; h_v])</FONT> >, fillcolor="#eef9ee", color="#66aa6a"];
+    conflict [label=< <B>Conflict path</B><BR/><FONT POINT-SIZE="10">MLP([h_t; h_a; h_v;</FONT><BR/><FONT POINT-SIZE="10">|h_t-h_a|; |h_t-h_v|])</FONT> >, fillcolor="#fff5ea", color="#de9443"];
+    merge [label=< <B>Utterance fusion</B><BR/><FONT POINT-SIZE="10">z_i = s_i + g_i * c_i</FONT> >, fillcolor="#fff8f2", color="#e6863b", penwidth=1.9];
+    speaker [label=< <B>Speaker residual</B><BR/><FONT POINT-SIZE="10">z_i + e_spk</FONT> >, fillcolor="#eef8ef", color="#56a96a"];
+
+    {rank=same; dist; router}
+    {rank=same; stable; conflict}
+
+    dist -> router [color="#e6863b"];
+    stable -> merge [color="#66aa6a"];
+    conflict -> merge [color="#de9443"];
+    router -> merge [color="#e6863b", xlabel="gate g_i", fontname="Helvetica", fontsize=10];
+    merge -> speaker [xlabel="fused utterance state", fontname="Helvetica", fontsize=10, color="#7a8794"];
+  }
+
+  subgraph cluster_ctxopt {
+    label="Dialogue Context Modeling and Optimization";
+    labelloc=t; fontsize=18; fontname="Helvetica-Bold"; color="#ddd7f2"; style="rounded";
+
+    bigru [label=< <B>BiGRU context encoder</B><BR/><FONT POINT-SIZE="10">dialogue-level temporal reasoning</FONT><BR/><FONT POINT-SIZE="10">u1, u2, u3, ..., ut</FONT> >, fillcolor="#eef2ff", color="#6a7fe0"];
+    clf [label=< <B>Emotion head</B><BR/><FONT POINT-SIZE="10">Dropout + MLP + Softmax</FONT> >, fillcolor="#fff1f5", color="#db6283"];
+    loss [label=< <B>Cross-entropy loss</B><BR/><FONT POINT-SIZE="10">weighted-F1 checkpoint selection</FONT> >, fillcolor="#fff7e8", color="#d7a23b"];
+    magma [label=< <B>Magma optimizer</B><BR/><FONT POINT-SIZE="10">m &lt;- beta*m + (1-beta)*g</FONT><BR/><FONT POINT-SIZE="10">mask coordinates where g * m &lt; 0</FONT><BR/><FONT POINT-SIZE="10">masked AdamW step</FONT> >, fillcolor="#f5efff", color="#8d72cc"];
+    legend [shape=plain, label=<
+      <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" COLOR="#c6cfda">
+        <TR><TD BGCOLOR="#f8fafc"><B>Legend</B></TD></TR>
+        <TR><TD><FONT POINT-SIZE="10">Solid arrows: forward inference</FONT></TD></TR>
+        <TR><TD><FONT POINT-SIZE="10">Dashed arrow: optimizer-side feedback</FONT></TD></TR>
+        <TR><TD><FONT POINT-SIZE="10">Green / orange branches: stable vs. conflict routing</FONT></TD></TR>
+      </TABLE>>];
+
+    {rank=same; bigru; clf; loss; magma; legend}
+  }
+
+  txt_proj -> dist [color="#6a8190"];
+  aud_proj -> dist [color="#6a8190"];
+  vis_proj -> dist [color="#6a8190"];
+  txt_proj -> stable [color="#66aa6a"];
+  aud_proj -> stable [color="#66aa6a"];
+  vis_proj -> stable [color="#66aa6a"];
+  txt_proj -> conflict [color="#de9443"];
+  aud_proj -> conflict [color="#de9443"];
+  vis_proj -> conflict [color="#de9443"];
+
+  txt_proj -> router [style=invis];
+  speaker -> bigru;
+  bigru -> clf;
+  clf -> loss;
+  loss -> magma [color="#8d72cc"];
+  magma -> merge [style=dashed, color="#8d72cc", constraint=false, xlabel="optimizer feedback", fontname="Helvetica", fontsize=10];
+}
