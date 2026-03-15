@@ -2,7 +2,7 @@
 
 Official PyTorch implementation for “Stable Multimodal Emotion Recognition in Conversation via Expectancy-Violation Routing and Momentum-Aligned Masking”.
 
-This repository contains the training code, model definitions, and analysis scripts for the MERC experiments.
+This repository contains the training code, model definitions, and experiment scripts for the MERC study.
 
 ## Overview
 
@@ -16,7 +16,7 @@ Lightweight multimodal emotion recognition in conversation with:
 - `train.py` — main training entry point
 - `models/` — MERC model, EV-Gate, MoMask optimizer wrapper, LoRA utilities
 - `utils/` — data loading and plotting helpers
-- `tools/` — reviewer-study, robustness, and manuscript-analysis scripts
+- `tools/` — experiment orchestration, robustness evaluation, and figure-generation utilities
 - `figures/` — local output directory for generated figures (not tracked)
 
 ## Data
