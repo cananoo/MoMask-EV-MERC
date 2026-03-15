@@ -17,7 +17,7 @@ Lightweight multimodal emotion recognition in conversation with:
 - `models/` — MERC model, EV-Gate, MoMask optimizer wrapper, LoRA utilities
 - `utils/` — data loading and plotting helpers
 - `tools/` — reviewer-study, robustness, and manuscript-analysis scripts
-- `figures/` — generated experiment figures
+- `figures/` — local output directory for generated figures (not tracked)
 
 ## Data
 
