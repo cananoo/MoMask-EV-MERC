@@ -1,65 +1,59 @@
 # MoMask-EV-MERC
 
-Official PyTorch implementation for “Stable Multimodal Emotion Recognition in Conversation via Expectancy-Violation Routing and Momentum-Aligned Masking”.
-
-This repository contains the training code, model definitions, and experiment scripts for the MERC study.
+PyTorch code for "Stable Multimodal Emotion Recognition in Conversation via Expectancy-Violation Routing and Momentum-Aligned Masking".
 
 ## Overview
 
-Lightweight multimodal emotion recognition in conversation with:
+This repository contains the training and evaluation code for a lightweight MERC pipeline built around:
 
-- `EV-Gate`: expectancy-violation-based fusion
-- `MoMask`: momentum-aligned masking on top of `AdamW`
+- `EV-Gate` for text-anchored multimodal fusion
+- `MoMask` for momentum-aligned masking on top of `AdamW`
 
-## Repository layout
-
-- `train.py` — main training entry point
-- `models/` — MERC model, EV-Gate, MoMask optimizer wrapper, LoRA utilities
-- `utils/` — data loading and plotting helpers
-- `tools/` — experiment reproduction and robustness evaluation utilities
-- `figures/` — local output directory for generated figures (not tracked)
-
-## Data
-
-The repository does not ship the processed feature bundles or model checkpoints.
-
-Expected local data files:
-
-- `dataset/iemocap_multimodal_features.pkl`
-- `dataset/meld_multimodal_features.pkl`
-
-These are ignored by Git and should be prepared locally according to the dataset licenses.
-
-## Environment
+## Setup
 
 Recommended Python version: `3.10+`
-
-Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
+## Data
+
+This repository does not include processed features or model checkpoints.
+
+Place the local feature bundles at:
+
+- `dataset/iemocap_multimodal_features.pkl`
+- `dataset/meld_multimodal_features.pkl`
+
+Use the datasets in accordance with their original licenses.
+
 ## Training
 
-Example IEMOCAP run:
+IEMOCAP:
 
 ```bash
 python train.py --dataset iemocap --use_ev_gate --use_momask
 ```
 
-Example MELD run:
+MELD:
 
 ```bash
 python train.py --dataset meld --use_ev_gate --use_momask
 ```
 
-## Reproduction helpers
+## Reproducibility
 
-- `tools/run_controlled_studies.py` — controlled multi-seed and optimizer comparison runs
-- `tools/robustness_eval.py` — robustness evaluation under modality corruption
+- `tools/run_controlled_studies.py` runs multi-seed and optimizer comparison experiments.
+- `tools/robustness_eval.py` evaluates robustness under modality corruption.
+
+## Repository structure
+
+- `train.py` main training entry point
+- `models/` model components and optimizer wrappers
+- `utils/` data loading and plotting utilities
+- `tools/` experiment scripts used for reproduction
 
 ## Notes
 
-- Large checkpoints, processed feature bundles, manuscript sources, and local debugging images are intentionally excluded.
-- If you plan to reproduce the paper numbers, prepare the local feature bundles under `dataset/` and write outputs under `checkpoints/`.
+- Large artifacts such as checkpoints, cached features, figures, and manuscript files are excluded from version control.
