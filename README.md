@@ -16,7 +16,7 @@ Lightweight multimodal emotion recognition in conversation with:
 - `train.py` — main training entry point
 - `models/` — MERC model, EV-Gate, MoMask optimizer wrapper, LoRA utilities
 - `utils/` — data loading and plotting helpers
-- `tools/` — experiment orchestration, robustness evaluation, and figure-generation utilities
+- `tools/` — experiment reproduction and robustness evaluation utilities
 - `figures/` — local output directory for generated figures (not tracked)
 
 ## Data
@@ -53,6 +53,11 @@ Example MELD run:
 ```bash
 python train.py --dataset meld --use_ev_gate --use_momask
 ```
+
+## Reproduction helpers
+
+- `tools/run_controlled_studies.py` — controlled multi-seed and optimizer comparison runs
+- `tools/robustness_eval.py` — robustness evaluation under modality corruption
 
 ## Notes
 
