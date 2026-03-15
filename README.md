@@ -4,8 +4,6 @@ Official PyTorch implementation for “Stable Multimodal Emotion Recognition in 
 
 This repository contains the training code, model definitions, and analysis scripts for the MERC experiments.
 
-Anonymous review repository: `https://anonymous.4open.science/r/MoMask-EV-MERC-4218/README.md`
-
 ## Overview
 
 Lightweight multimodal emotion recognition in conversation with:
