@@ -136,7 +136,7 @@ def write_architecture_mermaid(output_path: str | Path) -> None:
     K --> L[BiGRU Context Encoder]
     L --> M[Emotion Classifier]
     M --> N[Cross-Entropy Loss]
-    N --> O[Magma Gradient Filter]
+    N --> O[MoMask Gradient Filter]
     O --> P[AdamW Parameter Update]
     """
     output_path.write_text(mermaid, encoding="utf-8")
@@ -314,7 +314,7 @@ def _draw_loss_icon(axis, x, y, w, h):
     axis.text(x + w * 0.86, y + h * 0.56, "L", ha="center", va="center", fontsize=10, color="#9c6f11", zorder=7, fontweight="bold")
 
 
-def _draw_magma_icon(axis, x, y, w, h):
+def _draw_momask_icon(axis, x, y, w, h):
     cols, rows = 5, 3
     cell_w = w * 0.11
     cell_h = h * 0.12
@@ -381,8 +381,8 @@ def write_architecture_figure(output_path: str | Path) -> None:
     _draw_probability_icon(ax, 0.735, 0.438, 0.14, 0.05)
     _box(ax, 0.71, 0.23, 0.08, 0.09, "Loss", None, fc="#fff6e7", ec="#d6a13a", title_size=10)
     _draw_loss_icon(ax, 0.718, 0.238, 0.064, 0.05)
-    _box(ax, 0.82, 0.21, 0.11, 0.13, "Magma", "masked gradient", fc="#f4efff", ec="#8d72cc", title_size=11, subtitle_size=8)
-    _draw_magma_icon(ax, 0.831, 0.228, 0.088, 0.08)
+    _box(ax, 0.82, 0.21, 0.11, 0.13, "MoMask", "masked gradient", fc="#f4efff", ec="#8d72cc", title_size=11, subtitle_size=8)
+    _draw_momask_icon(ax, 0.831, 0.228, 0.088, 0.08)
 
     _arrow(ax, (0.23, 0.745), (0.25, 0.745), color="#4f6b8a")
     _arrow(ax, (0.23, 0.535), (0.25, 0.535), color="#4f6b8a")
@@ -404,7 +404,7 @@ def write_architecture_figure(output_path: str | Path) -> None:
     _arrow(ax, (0.79, 0.275), (0.82, 0.275), color="#8d72cc")
     _arrow(ax, (0.82, 0.21), (0.58, 0.79), color="#8d72cc", style="dashed", curve=-0.30, zorder=1)
 
-    ax.text(0.50, 0.94, "Conflict-aware MERC with EV-Gate fusion and Magma optimization", ha="center", va="center", fontsize=15, fontweight="bold", color="#102a43")
+    ax.text(0.50, 0.94, "Conflict-aware MERC with EV-Gate fusion and MoMask optimization", ha="center", va="center", fontsize=15, fontweight="bold", color="#102a43")
     ax.text(0.50, 0.905, "Solid arrows denote forward inference; the dashed arc denotes masked optimization feedback.", ha="center", va="center", fontsize=9.5, color="#52606d")
     ax.text(0.49, 0.41, "utterance fusion", ha="center", va="bottom", fontsize=8.5, color="#7b8794")
     ax.text(0.875, 0.36, "backpropagation", ha="center", va="bottom", fontsize=8.5, color="#7b8794")

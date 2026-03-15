@@ -69,10 +69,10 @@ def base_command(args: argparse.Namespace, run_name: str) -> list[str]:
 
 
 def run_lora_compare(args: argparse.Namespace) -> None:
-    for use_magma in [False, True]:
-        run_name = f"{args.dataset}_lora_postctx_{'magma' if use_magma else 'adamw'}"
+    for use_momask in [False, True]:
+        run_name = f"{args.dataset}_lora_postctx_{'momask' if use_momask else 'adamw'}"
         command = base_command(args, run_name)
-        command.extend(["--use_magma" if use_magma else "--no-use_magma"])
+        command.extend(["--use_momask" if use_momask else "--no-use_momask"])
         run_command(command, args.dry_run)
 
 
@@ -82,8 +82,8 @@ def run_ema_ablation(args: argparse.Namespace) -> None:
         command = base_command(args, run_name)
         command.extend(
             [
-                "--use_magma",
-                "--magma_momentum_source",
+                "--use_momask",
+                "--momask_momentum_source",
                 momentum_source,
             ]
         )
@@ -92,10 +92,10 @@ def run_ema_ablation(args: argparse.Namespace) -> None:
 
 def run_gate_position(args: argparse.Namespace) -> None:
     for gate_position in ["pre_context", "post_context"]:
-        run_name = f"{args.dataset}_lora_{gate_position}_magma"
+        run_name = f"{args.dataset}_lora_{gate_position}_momask"
         command = base_command(args, run_name)
         command[command.index("--gate_position") + 1] = gate_position
-        command.extend(["--use_magma"])
+        command.extend(["--use_momask"])
         run_command(command, args.dry_run)
 
 

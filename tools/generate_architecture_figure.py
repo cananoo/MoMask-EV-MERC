@@ -128,7 +128,7 @@ rounded_box(0.74, 0.45, 0.19, 0.095,
 rounded_box(0.74, 0.30, 0.19, 0.095,
             'Weighted cross-entropy\nValidation-selected weighted-F1', COLORS['loss_fill'], '#d7a029', fontsize=10.1)
 rounded_box(0.74, 0.13, 0.19, 0.11,
-            'Magma optimizer\n$m_t=\\beta m_{t-1}+(1-\\beta)g_t$\nmask$(g_t \\odot m_t<0)$ -> AdamW step',
+            'MoMask optimizer\n$m_t=\\beta m_{t-1}+(1-\\beta)g_t$\nmask$(g_t \\odot m_t<0)$ -> AdamW step',
             COLORS['mag_fill'], COLORS['purple'], fontsize=10.0)
 
 centers = [x + proj_w / 2 for x in proj_xs]
@@ -152,7 +152,7 @@ rounded_box(legend_x, legend_y, legend_w, legend_h, '', '#ffffff', '#cbd5e1', lw
 legend_items = [
     ('Stable branch', COLORS['green'], 'agreement-preserving path for aligned modalities'),
     ('Conflict branch', COLORS['orange'], 'nonlinear route for expectancy-violation cues'),
-    ('Dashed feedback', COLORS['purple'], 'Magma suppresses momentum-conflicting coordinates'),
+    ('Dashed feedback', COLORS['purple'], 'MoMask suppresses momentum-conflicting coordinates'),
 ]
 start_x = legend_x + 0.02
 for idx, (name, col, desc) in enumerate(legend_items):
@@ -162,12 +162,9 @@ for idx, (name, col, desc) in enumerate(legend_items):
     ax.text(start_x + 0.036, y, f'{name}: {desc}', va='center', ha='left', fontsize=9.15, color=COLORS['border'])
 
 rounded_box(0.66, 0.03, 0.31, 0.11,
-            'Design rationale\nEV-Gate isolates modality contradiction before temporal modeling;\nMagma stabilizes late-stage multimodal optimization with minimal overhead.',
+            'Design rationale\nEV-Gate isolates modality contradiction before temporal modeling;\nMoMask stabilizes late-stage multimodal optimization with minimal overhead.',
             '#ffffff', '#cbd5e1', fontsize=9.8, lw=1.1, radius=0.018)
 
-out_pdf = FIG_DIR / 'evgate_magma_architecture.pdf'
-out_png = FIG_DIR / 'evgate_magma_architecture.png'
+out_pdf = FIG_DIR / 'evgate_momask_architecture.pdf'
 fig.savefig(out_pdf, bbox_inches='tight')
-fig.savefig(out_png, dpi=320, bbox_inches='tight')
 print(f'Wrote {out_pdf}')
-print(f'Wrote {out_png}')

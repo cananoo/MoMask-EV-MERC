@@ -226,6 +226,36 @@ def measure_latency(dataset: str, checkpoint_path: Path, use_ev_gate: bool, repe
     return float(np.mean(times)), float(np.std(times, ddof=1) if len(times) > 1 else 0.0)
 
 
+def resolve_checkpoint(base_dir: Path, want_adamw: bool) -> Path:
+    candidates = sorted(base_dir.glob("*/best.pt"))
+    if not candidates:
+        raise FileNotFoundError(f"No checkpoint found under {base_dir}")
+    matches = [path for path in candidates if ("adamw" in path.parent.name.lower()) == want_adamw]
+    if not matches:
+        raise FileNotFoundError(f"No matching checkpoint found under {base_dir}")
+    return matches[0]
+
+
+def read_summary_entry(summary_path: Path, want_adamw: bool) -> dict:
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    if want_adamw:
+        return summary["adamw"]
+    non_adamw_keys = [key for key in summary if key != "adamw"]
+    if not non_adamw_keys:
+        raise KeyError(f"No non-AdamW entry found in {summary_path}")
+    return summary[non_adamw_keys[0]]
+
+
+def resolve_experiment_dir(pattern: str, want_adamw: bool) -> Path:
+    candidates = sorted((ROOT / "checkpoints").glob(pattern))
+    if not candidates:
+        raise FileNotFoundError(f"No experiment directory matched {pattern}")
+    matches = [path for path in candidates if ("adamw" in path.name.lower()) == want_adamw]
+    if not matches:
+        raise FileNotFoundError(f"No matching experiment directory found for {pattern}")
+    return matches[0]
+
+
 def plot_tsne(baseline: dict, ours: dict, output_prefix: Path) -> None:
     label_names = baseline['label_names']
     rng = np.random.default_rng(42)
@@ -246,7 +276,7 @@ def plot_tsne(baseline: dict, ours: dict, output_prefix: Path) -> None:
 
     palette = sns.color_palette('tab10', n_colors=len(label_names))
     fig, axes = plt.subplots(1, 2, figsize=(14, 6), sharex=False, sharey=False)
-    titles = ['EV-Gate + AdamW', 'EV-Gate + Magma']
+    titles = ['EV-Gate + AdamW', 'EV-Gate + MoMask']
     for ax, xy, labels, title in zip(axes, [baseline_xy, ours_xy], [baseline_labels, ours_labels], titles):
         for label_id, label_name in enumerate(label_names):
             mask = labels == label_id
@@ -261,31 +291,33 @@ def plot_tsne(baseline: dict, ours: dict, output_prefix: Path) -> None:
     fig.suptitle('IEMOCAP utterance representations after contextual encoding', fontsize=16, y=0.98)
     fig.tight_layout(rect=(0, 0.08, 1, 0.95))
     fig.savefig(output_prefix.with_suffix('.pdf'), bbox_inches='tight')
-    fig.savefig(output_prefix.with_suffix('.png'), dpi=320, bbox_inches='tight')
     plt.close(fig)
 
 
 def main() -> None:
+    iemocap_compare_dir = ROOT / 'checkpoints' / 'final_iemocap_compare_h320_seeded'
+    iemocap_noev_dir = resolve_experiment_dir('final_iemocap_noev*_h320', want_adamw=False)
+    meld_compare_dir = ROOT / 'checkpoints' / 'final_meld_compare_tuned'
     paths = {
-        'iemocap_adamw': ROOT / 'checkpoints' / 'final_iemocap_compare_h320_seeded' / 'baseline_adamw' / 'best.pt',
-        'iemocap_magma': ROOT / 'checkpoints' / 'final_iemocap_compare_h320_seeded' / 'proposed_magma' / 'best.pt',
-        'iemocap_noev_magma': ROOT / 'checkpoints' / 'final_iemocap_noev_magma_h320' / 'single_magma' / 'best.pt',
-        'iemocap_noev_adamw': ROOT / 'checkpoints' / 'final_iemocap_noev_adamw_h320' / 'single_adamw' / 'best.pt',
-        'meld_adamw': ROOT / 'checkpoints' / 'final_meld_compare_tuned' / 'baseline_adamw' / 'best.pt',
-        'meld_magma': ROOT / 'checkpoints' / 'final_meld_compare_tuned' / 'proposed_magma' / 'best.pt',
+        'iemocap_adamw': resolve_checkpoint(iemocap_compare_dir, want_adamw=True),
+        'iemocap_momask': resolve_checkpoint(iemocap_compare_dir, want_adamw=False),
+        'iemocap_noev_momask': resolve_checkpoint(iemocap_noev_dir, want_adamw=False),
+        'iemocap_noev_adamw': resolve_checkpoint(ROOT / 'checkpoints' / 'final_iemocap_noev_adamw_h320', want_adamw=True),
+        'meld_adamw': resolve_checkpoint(meld_compare_dir, want_adamw=True),
+        'meld_momask': resolve_checkpoint(meld_compare_dir, want_adamw=False),
     }
 
     iemocap_adamw = collect_predictions('iemocap', paths['iemocap_adamw'], use_ev_gate=True)
-    iemocap_magma = collect_predictions('iemocap', paths['iemocap_magma'], use_ev_gate=True)
+    iemocap_momask = collect_predictions('iemocap', paths['iemocap_momask'], use_ev_gate=True)
     meld_adamw = collect_predictions('meld', paths['meld_adamw'], use_ev_gate=True)
-    meld_magma = collect_predictions('meld', paths['meld_magma'], use_ev_gate=True)
+    meld_momask = collect_predictions('meld', paths['meld_momask'], use_ev_gate=True)
 
     stats = {}
     for name, result in {
         'iemocap_adamw': iemocap_adamw,
-        'iemocap_magma': iemocap_magma,
+        'iemocap_momask': iemocap_momask,
         'meld_adamw': meld_adamw,
-        'meld_magma': meld_magma,
+        'meld_momask': meld_momask,
     }.items():
         wf1 = f1_score(result['y_true'], result['y_pred'], average='weighted')
         acc = accuracy_score(result['y_true'], result['y_pred'])
@@ -299,8 +331,8 @@ def main() -> None:
         }
 
     for dataset, base_result, ours_result in [
-        ('iemocap', iemocap_adamw, iemocap_magma),
-        ('meld', meld_adamw, meld_magma),
+        ('iemocap', iemocap_adamw, iemocap_momask),
+        ('meld', meld_adamw, meld_momask),
     ]:
         b_only, c_only, pvalue = mcnemar_pvalue(base_result['y_true'], base_result['y_pred'], ours_result['y_pred'])
         d_value = cohens_dz(per_conversation_weighted_f1(base_result), per_conversation_weighted_f1(ours_result))
@@ -312,18 +344,18 @@ def main() -> None:
         }
 
     ablation = {
-        'Base (Linear fusion + AdamW)': json.loads((ROOT / 'checkpoints' / 'final_iemocap_noev_adamw_h320' / 'summary.json').read_text(encoding='utf-8'))['adamw'],
-        'Base + EV-Gate': json.loads((ROOT / 'checkpoints' / 'final_iemocap_compare_h320_seeded' / 'summary.json').read_text(encoding='utf-8'))['adamw'],
-        'Base + Magma': json.loads((ROOT / 'checkpoints' / 'final_iemocap_noev_magma_h320' / 'summary.json').read_text(encoding='utf-8'))['magma'],
-        'Ours (EV-Gate + Magma)': json.loads((ROOT / 'checkpoints' / 'final_iemocap_compare_h320_seeded' / 'summary.json').read_text(encoding='utf-8'))['magma'],
+        'Base (Linear fusion + AdamW)': read_summary_entry(ROOT / 'checkpoints' / 'final_iemocap_noev_adamw_h320' / 'summary.json', want_adamw=True),
+        'Base + EV-Gate': read_summary_entry(iemocap_compare_dir / 'summary.json', want_adamw=True),
+        'Base + MoMask': read_summary_entry(iemocap_noev_dir / 'summary.json', want_adamw=False),
+        'Ours (EV-Gate + MoMask)': read_summary_entry(iemocap_compare_dir / 'summary.json', want_adamw=False),
     }
 
     complexity = {}
     complexity_configs = {
         'Base (Linear fusion + AdamW)': (paths['iemocap_noev_adamw'], False),
         'Base + EV-Gate': (paths['iemocap_adamw'], True),
-        'Base + Magma': (paths['iemocap_noev_magma'], False),
-        'Ours (EV-Gate + Magma)': (paths['iemocap_magma'], True),
+        'Base + MoMask': (paths['iemocap_noev_momask'], False),
+        'Ours (EV-Gate + MoMask)': (paths['iemocap_momask'], True),
     }
     for name, (ckpt_path, use_ev_gate) in complexity_configs.items():
         params_m = count_params('iemocap', use_ev_gate=use_ev_gate, hidden_dim=320)
@@ -334,7 +366,7 @@ def main() -> None:
             'latency_std_ms': float(latency_std),
         }
 
-    plot_tsne(iemocap_adamw, iemocap_magma, FIG_DIR / 'iemocap_tsne_comparison')
+    plot_tsne(iemocap_adamw, iemocap_momask, FIG_DIR / 'iemocap_tsne_comparison')
 
     payload = {
         'stats': stats,

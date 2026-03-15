@@ -5,16 +5,16 @@ from typing import Any
 import torch
 
 
-class Magma:
+class MoMask:
     def __init__(
         self,
         params,
         base_optimizer_cls: type[torch.optim.Optimizer] = torch.optim.AdamW,
         lr: float = 2e-4,
         weight_decay: float = 1e-2,
-        magma_beta: float = 0.9,
-        magma_mask_prob: float = 0.35,
-        magma_momentum_source: str = "decoupled",
+        momask_beta: float = 0.9,
+        momask_mask_prob: float = 0.35,
+        momask_momentum_source: str = "decoupled",
         **base_optimizer_kwargs: Any,
     ):
         self.base_optimizer = base_optimizer_cls(
@@ -25,10 +25,10 @@ class Magma:
         )
         self.param_groups = self.base_optimizer.param_groups
         self.state = self.base_optimizer.state
-        self.magma_state: dict[torch.nn.Parameter, dict[str, torch.Tensor]] = {}
-        self.magma_beta = magma_beta
-        self.magma_mask_prob = magma_mask_prob
-        self.magma_momentum_source = magma_momentum_source
+        self.momask_state: dict[torch.nn.Parameter, dict[str, torch.Tensor]] = {}
+        self.momask_beta = momask_beta
+        self.momask_mask_prob = momask_mask_prob
+        self.momask_momentum_source = momask_momentum_source
         self.last_step_stats = {
             "conflict_ratio": 0.0,
             "masked_ratio": 0.0,
@@ -68,8 +68,8 @@ class Magma:
         layerwise_totals: dict[str, dict[str, int]] = {}
 
         for group in self.param_groups:
-            beta = group.get("magma_beta", self.magma_beta)
-            mask_prob = group.get("magma_mask_prob", self.magma_mask_prob)
+            beta = group.get("momask_beta", self.momask_beta)
+            mask_prob = group.get("momask_mask_prob", self.momask_mask_prob)
             for parameter in group["params"]:
                 if parameter.grad is None:
                     continue
@@ -77,8 +77,8 @@ class Magma:
                 if gradient.is_sparse:
                     continue
 
-                magma_state = self.magma_state.setdefault(parameter, {})
-                if self.magma_momentum_source == "adamw_expavg":
+                momask_state = self.momask_state.setdefault(parameter, {})
+                if self.momask_momentum_source == "adamw_expavg":
                     adam_state = self.base_optimizer.state.setdefault(parameter, {})
                     exp_avg = adam_state.get("exp_avg")
                     if exp_avg is None:
@@ -87,18 +87,18 @@ class Magma:
                     momentum = exp_avg.detach().clone()
                     momentum.mul_(beta1).add_(gradient, alpha=1.0 - beta1)
                 else:
-                    momentum = magma_state.get("momentum")
+                    momentum = momask_state.get("momentum")
                     if momentum is None:
                         momentum = torch.zeros_like(gradient)
                     momentum.mul_(beta).add_(gradient, alpha=1.0 - beta)
 
                 conflict_mask = (gradient * momentum) < 0
                 random_mask = torch.rand_like(gradient, dtype=torch.float32) < mask_prob
-                magma_mask = conflict_mask & random_mask
+                momask_mask = conflict_mask & random_mask
 
-                gradient.masked_fill_(magma_mask, 0.0)
-                if self.magma_momentum_source == "decoupled":
-                    magma_state["momentum"] = momentum
+                gradient.masked_fill_(momask_mask, 0.0)
+                if self.momask_momentum_source == "decoupled":
+                    momask_state["momentum"] = momentum
 
                 bucket = self._bucket_parameter(parameter)
                 bucket_stats = layerwise_totals.setdefault(
@@ -111,10 +111,10 @@ class Magma:
                 )
                 total_elements += gradient.numel()
                 total_conflicts += int(conflict_mask.sum().item())
-                total_masked += int(magma_mask.sum().item())
+                total_masked += int(momask_mask.sum().item())
                 bucket_stats["elements"] += gradient.numel()
                 bucket_stats["conflicts"] += int(conflict_mask.sum().item())
-                bucket_stats["masked"] += int(magma_mask.sum().item())
+                bucket_stats["masked"] += int(momask_mask.sum().item())
 
         loss = self.base_optimizer.step(closure)
         denominator = max(total_elements, 1)
@@ -136,21 +136,21 @@ class Magma:
         return loss
 
     def state_dict(self) -> dict[str, Any]:
-        serialized_magma_state = {id(parameter): {key: value.cpu() for key, value in state.items()} for parameter, state in self.magma_state.items()}
+        serialized_momask_state = {id(parameter): {key: value.cpu() for key, value in state.items()} for parameter, state in self.momask_state.items()}
         return {
             "base_optimizer": self.base_optimizer.state_dict(),
-            "magma_beta": self.magma_beta,
-            "magma_mask_prob": self.magma_mask_prob,
-            "magma_momentum_source": self.magma_momentum_source,
+            "momask_beta": self.momask_beta,
+            "momask_mask_prob": self.momask_mask_prob,
+            "momask_momentum_source": self.momask_momentum_source,
             "last_step_stats": self.last_step_stats,
-            "magma_state": serialized_magma_state,
+            "momask_state": serialized_momask_state,
         }
 
     def load_state_dict(self, state_dict: dict[str, Any]) -> None:
         self.base_optimizer.load_state_dict(state_dict["base_optimizer"])
-        self.magma_beta = state_dict.get("magma_beta", self.magma_beta)
-        self.magma_mask_prob = state_dict.get("magma_mask_prob", self.magma_mask_prob)
-        self.magma_momentum_source = state_dict.get("magma_momentum_source", self.magma_momentum_source)
+        self.momask_beta = state_dict.get("momask_beta", self.momask_beta)
+        self.momask_mask_prob = state_dict.get("momask_mask_prob", self.momask_mask_prob)
+        self.momask_momentum_source = state_dict.get("momask_momentum_source", self.momask_momentum_source)
         self.last_step_stats = state_dict.get("last_step_stats", self.last_step_stats)
         self.param_groups = self.base_optimizer.param_groups
         self.state = self.base_optimizer.state

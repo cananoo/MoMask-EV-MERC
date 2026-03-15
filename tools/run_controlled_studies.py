@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from models.conflict_optim import ConflictOptimizer
-from models.magma_optim import Magma
+from models.momask_optim import MoMask
 from models.merc_model import MultimodalERCModel
 from utils.data import collate_conversations, compute_class_weights, load_dataset_bundle
 from utils.plotter import plot_confusion_matrix, plot_histories
@@ -158,6 +158,10 @@ def write_history_csv(history: dict[str, list[float]], output_path: Path) -> Non
             writer.writerow({key: history[key][row_index] for key in fieldnames})
 
 
+def optimizer_display_name(name: str) -> str:
+    return "MoMask" if name.lower() == "momask" else name.upper()
+
+
 def flatten_grad_tuple(grads: tuple[torch.Tensor | None, ...], params: list[torch.nn.Parameter]) -> torch.Tensor:
     chunks = []
     for grad, parameter in zip(grads, params):
@@ -279,14 +283,14 @@ def build_optimizer(model: nn.Module, config: dict[str, Any]):
     optimizer_name = config["optimizer"]
     if optimizer_name == "adamw":
         return torch.optim.AdamW(model.parameters(), lr=config["lr"], weight_decay=config["weight_decay"])
-    if optimizer_name == "magma":
-        return Magma(
+    if optimizer_name == "momask":
+        return MoMask(
             model.parameters(),
             lr=config["lr"],
             weight_decay=config["weight_decay"],
-            magma_beta=config["magma_beta"],
-            magma_mask_prob=config["magma_mask_prob"],
-            magma_momentum_source=config.get("magma_momentum_source", "decoupled"),
+            momask_beta=config["momask_beta"],
+            momask_mask_prob=config["momask_mask_prob"],
+            momask_momentum_source=config.get("momask_momentum_source", "decoupled"),
         )
     return ConflictOptimizer(
         model.parameters(),
@@ -471,8 +475,8 @@ def train_one_run(
     model.load_state_dict(best_state["model"])
     final_test_metrics = evaluate(model, dataloaders["test"], criterion, device, amp_enabled, max_eval_batches)
     cm = confusion_matrix(final_test_metrics["y_true"], final_test_metrics["y_pred"], labels=list(range(bundle["num_classes"])))
-    plot_confusion_matrix(cm, bundle["label_names"], output_dir / "confusion_matrix.pdf", title=f"{dataset.upper()} {config['optimizer'].upper()}")
-    plot_confusion_matrix(cm, bundle["label_names"], output_dir / "confusion_matrix.png", title=f"{dataset.upper()} {config['optimizer'].upper()}")
+    optimizer_title = optimizer_display_name(config["optimizer"])
+    plot_confusion_matrix(cm, bundle["label_names"], output_dir / "confusion_matrix.pdf", title=f"{dataset.upper()} {optimizer_title}")
     summary = {
         "dataset": dataset,
         "optimizer_name": config["optimizer"],
@@ -488,8 +492,7 @@ def train_one_run(
     }
     with (output_dir / "summary.json").open("w", encoding="utf-8") as file:
         json.dump(summary, file, indent=2)
-    plot_histories({config["optimizer"].upper(): history}, output_dir / "curves.pdf", metric_key="weighted_f1", metric_label="Weighted-F1")
-    plot_histories({config["optimizer"].upper(): history}, output_dir / "curves.png", metric_key="weighted_f1", metric_label="Weighted-F1")
+    plot_histories({optimizer_display_name(config["optimizer"]): history}, output_dir / "curves.pdf", metric_key="weighted_f1", metric_label="Weighted-F1")
     return summary
 
 
@@ -521,7 +524,7 @@ def run_multiseed(args: argparse.Namespace, output_root: Path) -> dict[str, Any]
     for dataset in args.datasets:
         dataset_results = {}
         base = DATASET_CONFIGS[dataset]
-        for optimizer_name in ["adamw", "magma"]:
+        for optimizer_name in ["adamw", "momask"]:
             runs = []
             for seed in args.seeds:
                 config = {
@@ -532,8 +535,8 @@ def run_multiseed(args: argparse.Namespace, output_root: Path) -> dict[str, Any]
                     "ev_gate_type": "scalar",
                     "ev_gate_distance": "l2",
                     "ev_gate_anchor": "text",
-                    "magma_beta": 0.9,
-                    "magma_mask_prob": 0.35,
+                    "momask_beta": 0.9,
+                    "momask_mask_prob": 0.35,
                 }
                 run_dir = output_root / "multiseed" / dataset / f"{optimizer_name}_seed{seed}"
                 runs.append(maybe_run(dataset, config, run_dir, args))
@@ -548,7 +551,7 @@ def run_optimizer_study(args: argparse.Namespace, output_root: Path) -> dict[str
     dataset = "iemocap"
     base = DATASET_CONFIGS[dataset]
     results = {}
-    for optimizer_name in ["adamw", "magma", "pcgrad", "cagrad", "mgda"]:
+    for optimizer_name in ["adamw", "momask", "pcgrad", "cagrad", "mgda"]:
         config = {
             **base,
             "optimizer": optimizer_name,
@@ -557,8 +560,8 @@ def run_optimizer_study(args: argparse.Namespace, output_root: Path) -> dict[str
             "ev_gate_type": "scalar",
             "ev_gate_distance": "l2",
             "ev_gate_anchor": "text",
-            "magma_beta": 0.9,
-            "magma_mask_prob": 0.35,
+            "momask_beta": 0.9,
+            "momask_mask_prob": 0.35,
         }
         run_dir = output_root / "optimizer_baselines" / optimizer_name
         results[optimizer_name] = maybe_run(dataset, config, run_dir, args)
@@ -580,12 +583,12 @@ def run_variant_study(args: argparse.Namespace, output_root: Path) -> dict[str, 
     for variant_name, variant in variants.items():
         config = {
             **base,
-            "optimizer": "magma",
+            "optimizer": "momask",
             "seed": 42,
             "use_ev_gate": True,
             **variant,
-            "magma_beta": 0.9,
-            "magma_mask_prob": 0.35,
+            "momask_beta": 0.9,
+            "momask_mask_prob": 0.35,
         }
         run_dir = output_root / "ev_gate_variants" / variant_name
         results[variant_name] = maybe_run(dataset, config, run_dir, args)

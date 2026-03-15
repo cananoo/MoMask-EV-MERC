@@ -16,7 +16,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from models.magma_optim import Magma
+from models.momask_optim import MoMask
 from models.merc_model import MultimodalERCModel
 from utils.data import collate_conversations, compute_class_weights, load_dataset_bundle
 from utils.plotter import (
@@ -29,7 +29,7 @@ from utils.plotter import (
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Train MERC with EV-Gate and Magma.")
+    parser = argparse.ArgumentParser(description="Train MERC with EV-Gate and MoMask.")
     parser.add_argument("--dataset", choices=["iemocap", "meld"], default="iemocap")
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch_size", type=int, default=4)
@@ -38,9 +38,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dropout", type=float, default=0.2)
     parser.add_argument("--lr", type=float, default=2e-4)
     parser.add_argument("--weight_decay", type=float, default=1e-2)
-    parser.add_argument("--magma_beta", type=float, default=0.9)
-    parser.add_argument("--magma_mask_prob", type=float, default=0.35)
-    parser.add_argument("--magma_momentum_source", choices=["decoupled", "adamw_expavg"], default="decoupled")
+    parser.add_argument("--momask_beta", type=float, default=0.9)
+    parser.add_argument("--momask_mask_prob", type=float, default=0.35)
+    parser.add_argument("--momask_momentum_source", choices=["decoupled", "adamw_expavg"], default="decoupled")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--validation_ratio", type=float, default=0.1)
@@ -62,7 +62,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--text_max_length", type=int, default=64)
     parser.add_argument("--text_pooling", choices=["cls", "mean"], default="cls")
     parser.add_argument("--text_train_layer_norm", action=argparse.BooleanOptionalAction, default=False)
-    parser.add_argument("--use_magma", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--use_momask", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--patience", type=int, default=12)
     parser.add_argument("--cpu", action="store_true")
     return parser.parse_args()
@@ -165,6 +165,10 @@ def write_history_csv(history: dict[str, list[float]], csv_path: Path) -> None:
             writer.writerow({fieldname: value for fieldname, value in zip(fieldnames, row)})
 
 
+def optimizer_display_name(name: str) -> str:
+    return "MoMask" if name.lower() == "momask" else name.upper()
+
+
 def summarize_parameters(model: nn.Module) -> dict[str, int]:
     total_params = sum(parameter.numel() for parameter in model.parameters())
     trainable_params = sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad)
@@ -186,7 +190,7 @@ def train_one_run(
     dataloaders: dict[str, DataLoader],
     args: argparse.Namespace,
     output_root: Path,
-    force_use_magma: bool | None = None,
+    force_use_momask: bool | None = None,
 ) -> dict[str, Any]:
     set_seed(args.seed)
     device = torch.device("cpu" if args.cpu or not torch.cuda.is_available() else "cuda")
@@ -218,18 +222,18 @@ def train_one_run(
     class_weights = compute_class_weights(bundle["train"], bundle["num_classes"]).to(device)
     criterion = nn.CrossEntropyLoss(weight=class_weights, ignore_index=-100)
 
-    use_magma = args.use_magma if force_use_magma is None else force_use_magma
-    if use_magma:
-        optimizer = Magma(
+    use_momask = args.use_momask if force_use_momask is None else force_use_momask
+    if use_momask:
+        optimizer = MoMask(
             model.parameters(),
             lr=args.lr,
             weight_decay=args.weight_decay,
-            magma_beta=args.magma_beta,
-            magma_mask_prob=args.magma_mask_prob,
-            magma_momentum_source=args.magma_momentum_source,
+            momask_beta=args.momask_beta,
+            momask_mask_prob=args.momask_mask_prob,
+            momask_momentum_source=args.momask_momentum_source,
         )
         optimizer.register_parameter_names(model.named_parameters())
-        optimizer_name = "magma"
+        optimizer_name = "momask"
     else:
         optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
         optimizer_name = "adamw"
@@ -395,9 +399,9 @@ def train_one_run(
                     "total_params": parameter_summary["total_params"],
                     "trainable_params": parameter_summary["trainable_params"],
                     "lora_trainable_params": parameter_summary["lora_trainable_params"],
-                    "magma_beta": args.magma_beta,
-                    "magma_mask_prob": args.magma_mask_prob,
-                    "magma_momentum_source": args.magma_momentum_source,
+                    "momask_beta": args.momask_beta,
+                    "momask_mask_prob": args.momask_mask_prob,
+                    "momask_momentum_source": args.momask_momentum_source,
                     "seed": args.seed,
                 },
                 "layerwise_history": layerwise_history,
@@ -419,13 +423,12 @@ def train_one_run(
         json.dump(layerwise_history, file, indent=2)
     write_history_csv(history, run_dir / "history.csv")
     plot_layerwise_masking(layerwise_history, run_dir / "layerwise_masking.pdf")
-    plot_layerwise_masking(layerwise_history, run_dir / "layerwise_masking.png")
 
     model.load_state_dict(best_state["model"])
     final_test_metrics = evaluate(model, dataloaders["test"], criterion, device, amp_enabled, args.max_eval_batches)
     cm = confusion_matrix(final_test_metrics["y_true"], final_test_metrics["y_pred"], labels=list(range(bundle["num_classes"])))
-    plot_confusion_matrix(cm, bundle["label_names"], run_dir / "confusion_matrix.pdf", title=f"{args.dataset.upper()} {optimizer_name.upper()}")
-    plot_confusion_matrix(cm, bundle["label_names"], run_dir / "confusion_matrix.png", title=f"{args.dataset.upper()} {optimizer_name.upper()}")
+    optimizer_title = optimizer_display_name(optimizer_name)
+    plot_confusion_matrix(cm, bundle["label_names"], run_dir / "confusion_matrix.pdf", title=f"{args.dataset.upper()} {optimizer_title}")
     return {
         "run_dir": str(run_dir),
         "history": history,
@@ -450,31 +453,21 @@ def main() -> None:
 
     bundle = load_dataset_bundle(args.dataset, validation_ratio=args.validation_ratio, seed=args.seed)
     dataloaders = create_dataloaders(bundle, args)
-    run_name = args.run_name or f"{args.dataset}_ev{int(args.use_ev_gate)}_mg{int(args.use_magma)}"
+    run_name = args.run_name or f"{args.dataset}_ev{int(args.use_ev_gate)}_mm{int(args.use_momask)}"
     output_root = Path(args.output_dir) / run_name
     output_root.mkdir(parents=True, exist_ok=True)
-    write_architecture_mermaid(Path("figures") / "evgate_magma_architecture.mmd")
-    write_architecture_figure(Path("figures") / "evgate_magma_architecture.pdf")
-    write_architecture_figure(Path("figures") / "evgate_magma_architecture.png")
+    write_architecture_mermaid(Path("figures") / "evgate_momask_architecture.mmd")
+    write_architecture_figure(Path("figures") / "evgate_momask_architecture.pdf")
 
     if args.compare_optimizers:
-        adamw_result = train_one_run("baseline", bundle, dataloaders, args, output_root, force_use_magma=False)
-        magma_result = train_one_run("proposed", bundle, dataloaders, args, output_root, force_use_magma=True)
+        adamw_result = train_one_run("baseline", bundle, dataloaders, args, output_root, force_use_momask=False)
+        momask_result = train_one_run("proposed", bundle, dataloaders, args, output_root, force_use_momask=True)
         plot_histories(
             {
                 "AdamW": adamw_result["history"],
-                "Magma": magma_result["history"],
+                "MoMask": momask_result["history"],
             },
             Path("figures") / f"{args.dataset}_optimizer_comparison.pdf",
-            metric_key="weighted_f1",
-            metric_label="Weighted-F1",
-        )
-        plot_histories(
-            {
-                "AdamW": adamw_result["history"],
-                "Magma": magma_result["history"],
-            },
-            Path("figures") / f"{args.dataset}_optimizer_comparison.png",
             metric_key="weighted_f1",
             metric_label="Weighted-F1",
         )
@@ -487,26 +480,21 @@ def main() -> None:
                 "run_dir": adamw_result["run_dir"],
                 "run_config": adamw_result["run_config"],
             },
-            "magma": {
-                "test_macro_f1": magma_result["test_macro_f1"],
-                "test_weighted_f1": magma_result["test_weighted_f1"],
-                "test_accuracy": magma_result["test_accuracy"],
-                "best_epoch": magma_result["best_epoch"],
-                "run_dir": magma_result["run_dir"],
-                "run_config": magma_result["run_config"],
+            "momask": {
+                "test_macro_f1": momask_result["test_macro_f1"],
+                "test_weighted_f1": momask_result["test_weighted_f1"],
+                "test_accuracy": momask_result["test_accuracy"],
+                "best_epoch": momask_result["best_epoch"],
+                "run_dir": momask_result["run_dir"],
+                "run_config": momask_result["run_config"],
             },
         }
     else:
         result = train_one_run("single", bundle, dataloaders, args, output_root)
+        optimizer_label = optimizer_display_name(result["optimizer_name"])
         plot_histories(
-            {result["optimizer_name"].upper(): result["history"]},
+            {optimizer_label: result["history"]},
             Path("figures") / f"{args.dataset}_{result['optimizer_name']}_curves.pdf",
-            metric_key="weighted_f1",
-            metric_label="Weighted-F1",
-        )
-        plot_histories(
-            {result["optimizer_name"].upper(): result["history"]},
-            Path("figures") / f"{args.dataset}_{result['optimizer_name']}_curves.png",
             metric_key="weighted_f1",
             metric_label="Weighted-F1",
         )

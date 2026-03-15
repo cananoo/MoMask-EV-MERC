@@ -40,7 +40,7 @@ def run_iemocap_session_cv(args: argparse.Namespace, output_root: Path) -> dict:
     proxy = make_args_proxy(args)
     base = DATASET_CONFIGS['iemocap']
     results = {}
-    for optimizer_name in ['adamw', 'magma']:
+    for optimizer_name in ['adamw', 'momask']:
         runs = []
         for fold_id in [1, 2, 3, 4, 5]:
             config = {
@@ -51,8 +51,8 @@ def run_iemocap_session_cv(args: argparse.Namespace, output_root: Path) -> dict:
                 'ev_gate_type': 'scalar',
                 'ev_gate_distance': 'l2',
                 'ev_gate_anchor': 'text',
-                'magma_beta': 0.9,
-                'magma_mask_prob': 0.35,
+                'momask_beta': 0.9,
+                'momask_mask_prob': 0.35,
                 'protocol': 'session_5fold',
                 'fold_id': fold_id,
             }
@@ -68,7 +68,7 @@ def run_meld_optimizer_baselines(args: argparse.Namespace, output_root: Path) ->
     proxy = make_args_proxy(args)
     base = DATASET_CONFIGS['meld']
     results = {}
-    for optimizer_name in ['adamw', 'magma', 'pcgrad', 'cagrad', 'mgda']:
+    for optimizer_name in ['adamw', 'momask', 'pcgrad', 'cagrad', 'mgda']:
         config = {
             **base,
             'optimizer': optimizer_name,
@@ -77,8 +77,8 @@ def run_meld_optimizer_baselines(args: argparse.Namespace, output_root: Path) ->
             'ev_gate_type': 'scalar',
             'ev_gate_distance': 'l2',
             'ev_gate_anchor': 'text',
-            'magma_beta': 0.9,
-            'magma_mask_prob': 0.35,
+            'momask_beta': 0.9,
+            'momask_mask_prob': 0.35,
             'protocol': 'default',
             'fold_id': None,
         }
@@ -109,28 +109,28 @@ def run_sensitivity(args: argparse.Namespace, output_root: Path) -> dict:
         for p in [0.1, 0.3, 0.5, 0.7]:
             config = {
                 **base,
-                'optimizer': 'magma',
+                'optimizer': 'momask',
                 'seed': 42,
                 'use_ev_gate': True,
                 'ev_gate_type': 'scalar',
                 'ev_gate_distance': 'l2',
                 'ev_gate_anchor': 'text',
-                'magma_beta': 0.9,
-                'magma_mask_prob': p,
+                'momask_beta': 0.9,
+                'momask_mask_prob': p,
             }
             run_dir = output_root / 'sensitivity' / dataset / f'maskprob_{str(p).replace(".", "p")}'
             dataset_results['mask_prob'][str(p)] = maybe_run(dataset, config, run_dir, proxy)
         for beta in [0.8, 0.9, 0.99]:
             config = {
                 **base,
-                'optimizer': 'magma',
+                'optimizer': 'momask',
                 'seed': 42,
                 'use_ev_gate': True,
                 'ev_gate_type': 'scalar',
                 'ev_gate_distance': 'l2',
                 'ev_gate_anchor': 'text',
-                'magma_beta': beta,
-                'magma_mask_prob': 0.35,
+                'momask_beta': beta,
+                'momask_mask_prob': 0.35,
             }
             run_dir = output_root / 'sensitivity' / dataset / f'beta_{str(beta).replace(".", "p")}'
             dataset_results['beta'][str(beta)] = maybe_run(dataset, config, run_dir, proxy)
@@ -150,7 +150,7 @@ def run_grad_conflict(args: argparse.Namespace, output_root: Path) -> dict:
         'conflict_analysis_batches': 8,
     }
     results = {}
-    for optimizer_name in ['adamw', 'magma']:
+    for optimizer_name in ['adamw', 'momask']:
         config = {
             **base,
             'optimizer': optimizer_name,
@@ -159,8 +159,8 @@ def run_grad_conflict(args: argparse.Namespace, output_root: Path) -> dict:
             'ev_gate_type': 'scalar',
             'ev_gate_distance': 'l2',
             'ev_gate_anchor': 'text',
-            'magma_beta': 0.9,
-            'magma_mask_prob': 0.35,
+            'momask_beta': 0.9,
+            'momask_mask_prob': 0.35,
         }
         run_dir = output_root / 'gradient_conflict' / optimizer_name
         results[optimizer_name] = maybe_run('iemocap', config, run_dir, proxy)

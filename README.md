@@ -1,6 +1,6 @@
-# Magma-EV-MERC
+# MoMask-EV-MERC
 
-Official PyTorch implementation for “Momentum-Aligned Gradient Masking for Stable Multimodal Emotion Recognition in Conversation with Expectancy-Violation Routing”.
+Official PyTorch implementation for “Stable Multimodal Emotion Recognition in Conversation via Expectancy-Violation Routing and Momentum-Aligned Masking”.
 
 This repository contains the training code, model definitions, and analysis scripts for the MERC experiments.
 
@@ -9,12 +9,12 @@ This repository contains the training code, model definitions, and analysis scri
 Lightweight multimodal emotion recognition in conversation with:
 
 - `EV-Gate`: expectancy-violation-based fusion
-- `Magma`: momentum-aligned gradient masking on top of `AdamW`
+- `MoMask`: momentum-aligned masking on top of `AdamW`
 
 ## Repository layout
 
 - `train.py` — main training entry point
-- `models/` — MERC model, EV-Gate, Magma, LoRA utilities
+- `models/` — MERC model, EV-Gate, MoMask optimizer wrapper, LoRA utilities
 - `utils/` — data loading and plotting helpers
 - `tools/` — reviewer-study, robustness, and manuscript-analysis scripts
 - `figures/` — generated experiment figures
@@ -45,13 +45,13 @@ pip install -r requirements.txt
 Example IEMOCAP run:
 
 ```bash
-python train.py --dataset iemocap --use_ev_gate --use_magma
+python train.py --dataset iemocap --use_ev_gate --use_momask
 ```
 
 Example MELD run:
 
 ```bash
-python train.py --dataset meld --use_ev_gate --use_magma
+python train.py --dataset meld --use_ev_gate --use_momask
 ```
 
 ## Notes

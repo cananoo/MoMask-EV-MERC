@@ -1,4 +1,4 @@
-digraph EVGateMagmaDetailed {
+digraph EVGateMoMaskDetailed {
   graph [rankdir=TB, newrank=true, compound=true, splines=spline, nodesep=0.35, ranksep=0.42, pad=0.25, bgcolor="white", fontname="Helvetica"];
   node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=12, color="#5b6b7a", penwidth=1.5, margin="0.16,0.10"];
   edge [color="#516b7b", penwidth=1.8, arrowsize=0.75];
@@ -78,7 +78,7 @@ digraph EVGateMagmaDetailed {
     bigru [label=< <B>BiGRU context encoder</B><BR/><FONT POINT-SIZE="10">dialogue-level temporal reasoning</FONT><BR/><FONT POINT-SIZE="10">u1, u2, u3, ..., ut</FONT> >, fillcolor="#eef2ff", color="#6a7fe0"];
     clf [label=< <B>Emotion head</B><BR/><FONT POINT-SIZE="10">Dropout + MLP + Softmax</FONT> >, fillcolor="#fff1f5", color="#db6283"];
     loss [label=< <B>Cross-entropy loss</B><BR/><FONT POINT-SIZE="10">weighted-F1 checkpoint selection</FONT> >, fillcolor="#fff7e8", color="#d7a23b"];
-    magma [label=< <B>Magma optimizer</B><BR/><FONT POINT-SIZE="10">m &lt;- beta*m + (1-beta)*g</FONT><BR/><FONT POINT-SIZE="10">mask coordinates where g * m &lt; 0</FONT><BR/><FONT POINT-SIZE="10">masked AdamW step</FONT> >, fillcolor="#f5efff", color="#8d72cc"];
+    momask [label=< <B>MoMask optimizer</B><BR/><FONT POINT-SIZE="10">m &lt;- beta*m + (1-beta)*g</FONT><BR/><FONT POINT-SIZE="10">mask coordinates where g * m &lt; 0</FONT><BR/><FONT POINT-SIZE="10">masked AdamW step</FONT> >, fillcolor="#f5efff", color="#8d72cc"];
     legend [shape=plain, label=<
       <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" COLOR="#c6cfda">
         <TR><TD BGCOLOR="#f8fafc"><B>Legend</B></TD></TR>
@@ -87,7 +87,7 @@ digraph EVGateMagmaDetailed {
         <TR><TD><FONT POINT-SIZE="10">Green / orange branches: stable vs. conflict routing</FONT></TD></TR>
       </TABLE>>];
 
-    {rank=same; bigru; clf; loss; magma; legend}
+    {rank=same; bigru; clf; loss; momask; legend}
   }
 
   txt_proj -> dist [color="#6a8190"];
@@ -104,6 +104,6 @@ digraph EVGateMagmaDetailed {
   speaker -> bigru;
   bigru -> clf;
   clf -> loss;
-  loss -> magma [color="#8d72cc"];
-  magma -> merge [style=dashed, color="#8d72cc", constraint=false, xlabel="optimizer feedback", fontname="Helvetica", fontsize=10];
+  loss -> momask [color="#8d72cc"];
+  momask -> merge [style=dashed, color="#8d72cc", constraint=false, xlabel="optimizer feedback", fontname="Helvetica", fontsize=10];
 }

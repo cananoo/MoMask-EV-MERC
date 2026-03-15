@@ -28,6 +28,16 @@ def move_batch(batch: dict, device: torch.device) -> dict:
     return out
 
 
+def resolve_checkpoint(base_dir: Path, want_adamw: bool) -> Path:
+    candidates = sorted(base_dir.glob('*/best.pt'))
+    if not candidates:
+        raise FileNotFoundError(f'No checkpoint found under {base_dir}')
+    matches = [path for path in candidates if ('adamw' in path.parent.name.lower()) == want_adamw]
+    if not matches:
+        raise FileNotFoundError(f'No matching checkpoint found under {base_dir}')
+    return matches[0]
+
+
 @torch.no_grad()
 def infer(model: MultimodalERCModel, batch: dict) -> torch.Tensor:
     return model(
@@ -105,10 +115,11 @@ def evaluate(dataset: str, ckpt_path: Path, use_ev_gate: bool) -> dict:
 
 
 def main() -> None:
+    compare_dir = ROOT / 'checkpoints' / 'final_iemocap_compare_h320_seeded'
     out = {
         'iemocap': {
-            'evgate_adamw': evaluate('iemocap', ROOT / 'checkpoints' / 'final_iemocap_compare_h320_seeded' / 'baseline_adamw' / 'best.pt', True),
-            'evgate_magma': evaluate('iemocap', ROOT / 'checkpoints' / 'final_iemocap_compare_h320_seeded' / 'proposed_magma' / 'best.pt', True),
+            'evgate_adamw': evaluate('iemocap', resolve_checkpoint(compare_dir, want_adamw=True), True),
+            'evgate_momask': evaluate('iemocap', resolve_checkpoint(compare_dir, want_adamw=False), True),
         }
     }
     out_path = ROOT / 'checkpoints' / 'analysis' / 'robustness_results.json'

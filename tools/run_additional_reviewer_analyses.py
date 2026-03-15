@@ -27,15 +27,15 @@ def run_decoupled_ema_ablation() -> dict:
         for fold_id in [1, 2, 3, 4, 5]:
             config = {
                 **DATASET_CONFIGS["iemocap"],
-                "optimizer": "magma",
+                "optimizer": "momask",
                 "seed": 42,
                 "use_ev_gate": True,
                 "ev_gate_type": "scalar",
                 "ev_gate_distance": "l2",
                 "ev_gate_anchor": "text",
-                "magma_beta": 0.9,
-                "magma_mask_prob": 0.35,
-                "magma_momentum_source": source,
+                "momask_beta": 0.9,
+                "momask_mask_prob": 0.35,
+                "momask_momentum_source": source,
                 "protocol": "session_5fold",
                 "fold_id": fold_id,
             }

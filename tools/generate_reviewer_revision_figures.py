@@ -22,6 +22,16 @@ def style_axes(ax: plt.Axes) -> None:
     ax.spines["right"].set_visible(False)
 
 
+def resolve_history_path(group_dir: Path, want_adamw: bool) -> Path:
+    candidates = sorted(path for path in group_dir.glob("*/history.json") if path.is_file())
+    if not candidates:
+        raise FileNotFoundError(f"No history.json found under {group_dir}")
+    matches = [path for path in candidates if ("adamw" in path.parent.name.lower()) == want_adamw]
+    if not matches:
+        raise FileNotFoundError(f"No matching history.json found under {group_dir}")
+    return matches[0]
+
+
 def plot_sensitivity() -> None:
     summary = load_json(REVIEW_ROOT / "sensitivity_summary.json")
     fig, axes = plt.subplots(1, 2, figsize=(11.0, 4.2), constrained_layout=True)
@@ -53,8 +63,7 @@ def plot_sensitivity() -> None:
     axes[1].set_xticklabels(["0.8", "0.9", "0.99"])
     style_axes(axes[1])
 
-    for suffix in ["pdf", "png"]:
-        fig.savefig(FIG_ROOT / f"reviewer_sensitivity.{suffix}", dpi=300, bbox_inches="tight")
+    fig.savefig(FIG_ROOT / "reviewer_sensitivity.pdf", dpi=300, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -69,19 +78,19 @@ def smooth(values: list[float], window: int = 5) -> np.ndarray:
 
 def plot_gradient_conflict() -> None:
     fig, axes = plt.subplots(1, 2, figsize=(11.0, 4.2), constrained_layout=True)
-    colors = {"adamw": "#1f77b4", "magma": "#ff7f0e"}
+    colors = {"adamw": "#1f77b4", "momask": "#ff7f0e"}
 
     histories = {}
-    for optimizer_name in ["adamw", "magma"]:
-        path = REVIEW_ROOT / "gradient_conflict" / optimizer_name / "history.json"
-        histories[optimizer_name] = load_json(path)
+    histories["adamw"] = load_json(resolve_history_path(REVIEW_ROOT / "gradient_conflict", want_adamw=True))
+    histories["momask"] = load_json(resolve_history_path(REVIEW_ROOT / "gradient_conflict", want_adamw=False))
 
     for optimizer_name, history in histories.items():
         epochs = history["epoch"]
         ta = smooth(history["grad_cosine_text_audio"], window=5)
         av = smooth(history["grad_cosine_audio_visual"], window=5)
-        axes[0].plot(epochs, ta, linewidth=2.2, color=colors[optimizer_name], label=optimizer_name.upper())
-        axes[1].plot(epochs, av, linewidth=2.2, color=colors[optimizer_name], label=optimizer_name.upper())
+        label = "MoMask" if optimizer_name == "momask" else optimizer_name.upper()
+        axes[0].plot(epochs, ta, linewidth=2.2, color=colors[optimizer_name], label=label)
+        axes[1].plot(epochs, av, linewidth=2.2, color=colors[optimizer_name], label=label)
 
     axes[0].axhline(0.0, color="#666666", linestyle=":", linewidth=1.0)
     axes[0].set_xlabel("Epoch")
@@ -96,8 +105,7 @@ def plot_gradient_conflict() -> None:
     axes[1].set_title("Audio-visual alignment trajectory")
     style_axes(axes[1])
 
-    for suffix in ["pdf", "png"]:
-        fig.savefig(FIG_ROOT / f"reviewer_gradient_conflict.{suffix}", dpi=300, bbox_inches="tight")
+    fig.savefig(FIG_ROOT / "reviewer_gradient_conflict.pdf", dpi=300, bbox_inches="tight")
     plt.close(fig)
 
 
